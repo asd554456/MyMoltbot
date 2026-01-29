@@ -17,6 +17,7 @@ const loading = ref(false)
 const dialog = ref(false)
 const editMode = ref(false)
 const currentTodo = ref<Partial<Todo>>({})
+const error = ref('')
 
 const newTodo = ref({
   title: '',
@@ -32,7 +33,7 @@ const getAuthHeaders = () => ({
   'Authorization': `Bearer ${localStorage.getItem('token')}`
 })
 
-const priorityLabels = ['', '低軌道', '近地軌道', '月球任務', '火星任務', '星際任務']
+const priorityLabels = ['', '低軌道', '近地', '月球', '火星', '星際']
 const priorityColors = ['', 'grey', 'blue', 'green', 'orange', 'red']
 const priorityIcons = ['', 'mdi-satellite-variant', 'mdi-earth', 'mdi-moon-waning-crescent', 'mdi-planet-mars', 'mdi-star-shooting']
 
@@ -52,9 +53,17 @@ const stats = computed(() => ({
 
 const fetchTodos = async () => {
   loading.value = true
+  error.value = ''
   try {
     const res = await fetch(`${API_URL}/todo`, { headers: getAuthHeaders() })
-    if (res.ok) todos.value = await res.json()
+    if (res.ok) {
+      todos.value = await res.json()
+    } else {
+      error.value = `載入失敗: ${res.status}`
+    }
+  } catch (e) {
+    error.value = '網路錯誤'
+    console.error('Fetch todos error:', e)
   } finally {
     loading.value = false
   }
@@ -63,37 +72,56 @@ const fetchTodos = async () => {
 const createTodo = async () => {
   if (!newTodo.value.title.trim()) return
   
-  await fetch(`${API_URL}/todo`, {
-    method: 'POST',
-    headers: getAuthHeaders(),
-    body: JSON.stringify({
-      title: newTodo.value.title,
-      description: newTodo.value.description || null,
-      priority: newTodo.value.priority,
-      dueDate: newTodo.value.dueDate || null
+  try {
+    const res = await fetch(`${API_URL}/todo`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        title: newTodo.value.title,
+        description: newTodo.value.description || null,
+        priority: newTodo.value.priority,
+        dueDate: newTodo.value.dueDate || null
+      })
     })
-  })
-  
-  newTodo.value = { title: '', description: '', priority: 3, dueDate: '' }
-  dialog.value = false
-  await fetchTodos()
+    
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      error.value = data.message || `建立失敗: ${res.status}`
+      return
+    }
+    
+    newTodo.value = { title: '', description: '', priority: 3, dueDate: '' }
+    dialog.value = false
+    await fetchTodos()
+  } catch (e) {
+    error.value = '網路錯誤，請重試'
+    console.error('Create todo error:', e)
+  }
 }
 
 const toggleComplete = async (todo: Todo) => {
-  await fetch(`${API_URL}/todo/${todo.id}`, {
-    method: 'PUT',
-    headers: getAuthHeaders(),
-    body: JSON.stringify({ isCompleted: !todo.isCompleted })
-  })
-  await fetchTodos()
+  try {
+    await fetch(`${API_URL}/todo/${todo.id}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ isCompleted: !todo.isCompleted })
+    })
+    await fetchTodos()
+  } catch (e) {
+    console.error('Toggle error:', e)
+  }
 }
 
 const deleteTodo = async (id: number) => {
-  await fetch(`${API_URL}/todo/${id}`, {
-    method: 'DELETE',
-    headers: getAuthHeaders()
-  })
-  await fetchTodos()
+  try {
+    await fetch(`${API_URL}/todo/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders()
+    })
+    await fetchTodos()
+  } catch (e) {
+    console.error('Delete error:', e)
+  }
 }
 
 const openEdit = (todo: Todo) => {
@@ -111,19 +139,22 @@ const openNew = () => {
 const updateTodo = async () => {
   if (!currentTodo.value.id) return
   
-  await fetch(`${API_URL}/todo/${currentTodo.value.id}`, {
-    method: 'PUT',
-    headers: getAuthHeaders(),
-    body: JSON.stringify({
-      title: currentTodo.value.title,
-      description: currentTodo.value.description,
-      priority: currentTodo.value.priority,
-      dueDate: currentTodo.value.dueDate
+  try {
+    await fetch(`${API_URL}/todo/${currentTodo.value.id}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        title: currentTodo.value.title,
+        description: currentTodo.value.description,
+        priority: currentTodo.value.priority,
+        dueDate: currentTodo.value.dueDate
+      })
     })
-  })
-  
-  dialog.value = false
-  await fetchTodos()
+    dialog.value = false
+    await fetchTodos()
+  } catch (e) {
+    console.error('Update error:', e)
+  }
 }
 
 const formatDate = (date?: string) => {
@@ -139,52 +170,51 @@ onMounted(fetchTodos)
     <!-- 星空背景 -->
     <div class="stars"></div>
     <div class="stars2"></div>
-    <div class="stars3"></div>
 
     <!-- 控制台標題 -->
-    <v-card class="console-header mx-auto mb-6" max-width="900" color="transparent" flat>
-      <div class="d-flex align-center justify-space-between flex-wrap ga-4">
-        <div>
-          <h1 class="text-h4 font-weight-bold neon-text">
-            <v-icon class="mr-2">mdi-rocket-launch</v-icon>
-            任務控制台
-          </h1>
-          <p class="text-subtitle-1 text-cyan-lighten-3 mt-1">Mission Control Center</p>
-        </div>
-        
-        <!-- 狀態面板 -->
-        <div class="d-flex ga-4">
-          <div class="stat-box">
-            <div class="stat-value text-cyan">{{ stats.total }}</div>
-            <div class="stat-label">總任務</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-value text-green">{{ stats.completed }}</div>
-            <div class="stat-label">已完成</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-value text-orange">{{ stats.highPriority }}</div>
-            <div class="stat-label">緊急</div>
+    <div class="console-header">
+      <div class="header-top">
+        <div class="logo-section">
+          <v-icon class="logo-icon">mdi-rocket-launch</v-icon>
+          <div>
+            <h1 class="title">任務控制台</h1>
+            <p class="subtitle">Mission Control</p>
           </div>
         </div>
       </div>
-    </v-card>
+      
+      <!-- 狀態面板 -->
+      <div class="stats-row">
+        <div class="stat-box">
+          <div class="stat-value text-cyan">{{ stats.total }}</div>
+          <div class="stat-label">總任務</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-value text-green">{{ stats.completed }}</div>
+          <div class="stat-label">完成</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-value text-orange">{{ stats.highPriority }}</div>
+          <div class="stat-label">緊急</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 錯誤提示 -->
+    <v-alert v-if="error" type="error" class="mx-auto mb-4 error-alert" max-width="600" closable @click:close="error = ''">
+      {{ error }}
+    </v-alert>
 
     <!-- 主面板 -->
-    <v-card class="console-panel mx-auto" max-width="900">
-      <v-card-title class="d-flex justify-space-between align-center py-4 px-6 panel-header">
-        <span class="text-h6">
-          <v-icon class="mr-2" color="cyan">mdi-format-list-checks</v-icon>
-          活躍任務序列
+    <v-card class="console-panel mx-auto">
+      <v-card-title class="panel-header">
+        <span class="panel-title">
+          <v-icon class="mr-1" color="cyan" size="20">mdi-format-list-checks</v-icon>
+          任務序列
         </span>
-        <v-btn
-          color="cyan"
-          variant="flat"
-          @click="openNew"
-          prepend-icon="mdi-plus-circle"
-          class="glow-button"
-        >
-          新增任務
+        <v-btn color="cyan" variant="flat" size="small" @click="openNew" class="glow-button">
+          <v-icon start size="18">mdi-plus</v-icon>
+          新增
         </v-btn>
       </v-card-title>
 
@@ -208,43 +238,46 @@ onMounted(fetchTodos)
                 ></v-checkbox-btn>
               </template>
 
-              <v-list-item-title :class="{ 'text-decoration-line-through text-grey': todo.isCompleted }">
-                {{ todo.title }}
-              </v-list-item-title>
-              
-              <v-list-item-subtitle v-if="todo.description" class="text-grey-lighten-1">
-                {{ todo.description }}
-              </v-list-item-subtitle>
-
-              <template #append>
-                <div class="d-flex align-center ga-2">
+              <div class="todo-content">
+                <div class="todo-title" :class="{ done: todo.isCompleted }">
+                  {{ todo.title }}
+                </div>
+                <div v-if="todo.description" class="todo-desc">
+                  {{ todo.description }}
+                </div>
+                <div class="todo-meta">
                   <v-chip
                     :color="priorityColors[todo.priority]"
-                    size="small"
+                    size="x-small"
                     variant="flat"
-                    class="priority-chip"
                   >
-                    <v-icon start size="14">{{ priorityIcons[todo.priority] }}</v-icon>
+                    <v-icon start size="12">{{ priorityIcons[todo.priority] }}</v-icon>
                     {{ priorityLabels[todo.priority] }}
                   </v-chip>
-                  
-                  <v-chip v-if="todo.dueDate" size="small" color="purple" variant="outlined">
-                    <v-icon start size="14">mdi-calendar</v-icon>
+                  <v-chip v-if="todo.dueDate" size="x-small" color="purple" variant="outlined">
                     {{ formatDate(todo.dueDate) }}
                   </v-chip>
+                </div>
+              </div>
 
-                  <v-btn icon="mdi-pencil" size="small" variant="text" color="cyan" @click="openEdit(todo)"></v-btn>
-                  <v-btn icon="mdi-delete" size="small" variant="text" color="red" @click="deleteTodo(todo.id)"></v-btn>
+              <template #append>
+                <div class="todo-actions">
+                  <v-btn icon size="x-small" variant="text" color="cyan" @click="openEdit(todo)">
+                    <v-icon size="16">mdi-pencil</v-icon>
+                  </v-btn>
+                  <v-btn icon size="x-small" variant="text" color="red" @click="deleteTodo(todo.id)">
+                    <v-icon size="16">mdi-delete</v-icon>
+                  </v-btn>
                 </div>
               </template>
             </v-list-item>
           </TransitionGroup>
 
-          <v-list-item v-if="!loading && todos.length === 0" class="text-center py-8">
-            <div class="text-grey">
-              <v-icon size="64" color="grey-darken-1">mdi-satellite-variant</v-icon>
-              <p class="mt-4 text-h6">軌道清空</p>
-              <p class="text-body-2">沒有待處理的任務</p>
+          <v-list-item v-if="!loading && todos.length === 0" class="empty-state">
+            <div>
+              <v-icon size="48" color="grey-darken-1">mdi-satellite-variant</v-icon>
+              <p class="mt-2">軌道清空</p>
+              <p class="text-caption text-grey">沒有待處理的任務</p>
             </div>
           </v-list-item>
         </v-list>
@@ -252,54 +285,53 @@ onMounted(fetchTodos)
     </v-card>
 
     <!-- 新增/編輯對話框 -->
-    <v-dialog v-model="dialog" max-width="500" class="space-dialog">
+    <v-dialog v-model="dialog" max-width="400" class="space-dialog">
       <v-card class="dialog-card">
-        <v-card-title class="text-h5 pa-6 dialog-header">
-          <v-icon class="mr-2">{{ editMode ? 'mdi-pencil' : 'mdi-rocket' }}</v-icon>
+        <v-card-title class="dialog-header">
+          <v-icon class="mr-2" size="20">{{ editMode ? 'mdi-pencil' : 'mdi-rocket' }}</v-icon>
           {{ editMode ? '編輯任務' : '發射新任務' }}
         </v-card-title>
 
-        <v-card-text class="pa-6">
-          <!-- 新增模式 -->
+        <v-card-text class="pa-4">
           <template v-if="!editMode">
             <v-text-field
               v-model="newTodo.title"
               label="任務名稱"
               variant="outlined"
               color="cyan"
-              prepend-inner-icon="mdi-flag"
-              class="mb-4"
+              density="compact"
+              class="mb-3"
             ></v-text-field>
 
             <v-textarea
               v-model="newTodo.description"
-              label="任務描述"
+              label="描述（選填）"
               variant="outlined"
               color="cyan"
               rows="2"
-              prepend-inner-icon="mdi-text"
-              class="mb-4"
+              density="compact"
+              class="mb-3"
             ></v-textarea>
 
             <v-select
               v-model="newTodo.priority"
               :items="[1, 2, 3, 4, 5]"
-              label="優先等級"
+              label="優先級"
               variant="outlined"
               color="cyan"
-              prepend-inner-icon="mdi-alert-circle"
-              class="mb-4"
+              density="compact"
+              class="mb-3"
             >
               <template #item="{ item, props }">
                 <v-list-item v-bind="props">
                   <template #prepend>
-                    <v-icon :color="priorityColors[item.value]">{{ priorityIcons[item.value] }}</v-icon>
+                    <v-icon :color="priorityColors[item.value]" size="18">{{ priorityIcons[item.value] }}</v-icon>
                   </template>
                   <v-list-item-title>{{ priorityLabels[item.value] }}</v-list-item-title>
                 </v-list-item>
               </template>
               <template #selection="{ item }">
-                <v-icon :color="priorityColors[item.value]" class="mr-2">{{ priorityIcons[item.value] }}</v-icon>
+                <v-icon :color="priorityColors[item.value]" class="mr-2" size="18">{{ priorityIcons[item.value] }}</v-icon>
                 {{ priorityLabels[item.value] }}
               </template>
             </v-select>
@@ -310,50 +342,49 @@ onMounted(fetchTodos)
               type="date"
               variant="outlined"
               color="cyan"
-              prepend-inner-icon="mdi-calendar"
+              density="compact"
             ></v-text-field>
           </template>
 
-          <!-- 編輯模式 -->
           <template v-else>
             <v-text-field
               v-model="currentTodo.title"
               label="任務名稱"
               variant="outlined"
               color="cyan"
-              prepend-inner-icon="mdi-flag"
-              class="mb-4"
+              density="compact"
+              class="mb-3"
             ></v-text-field>
 
             <v-textarea
               v-model="currentTodo.description"
-              label="任務描述"
+              label="描述（選填）"
               variant="outlined"
               color="cyan"
               rows="2"
-              prepend-inner-icon="mdi-text"
-              class="mb-4"
+              density="compact"
+              class="mb-3"
             ></v-textarea>
 
             <v-select
               v-model="currentTodo.priority"
               :items="[1, 2, 3, 4, 5]"
-              label="優先等級"
+              label="優先級"
               variant="outlined"
               color="cyan"
-              prepend-inner-icon="mdi-alert-circle"
-              class="mb-4"
+              density="compact"
+              class="mb-3"
             >
               <template #item="{ item, props }">
                 <v-list-item v-bind="props">
                   <template #prepend>
-                    <v-icon :color="priorityColors[item.value]">{{ priorityIcons[item.value] }}</v-icon>
+                    <v-icon :color="priorityColors[item.value]" size="18">{{ priorityIcons[item.value] }}</v-icon>
                   </template>
                   <v-list-item-title>{{ priorityLabels[item.value] }}</v-list-item-title>
                 </v-list-item>
               </template>
               <template #selection="{ item }">
-                <v-icon :color="priorityColors[item.value]" class="mr-2">{{ priorityIcons[item.value] }}</v-icon>
+                <v-icon :color="priorityColors[item.value]" class="mr-2" size="18">{{ priorityIcons[item.value] }}</v-icon>
                 {{ priorityLabels[item.value] }}
               </template>
             </v-select>
@@ -364,22 +395,22 @@ onMounted(fetchTodos)
               type="date"
               variant="outlined"
               color="cyan"
-              prepend-inner-icon="mdi-calendar"
+              density="compact"
             ></v-text-field>
           </template>
         </v-card-text>
 
-        <v-card-actions class="pa-6 pt-0">
+        <v-card-actions class="pa-4 pt-0">
           <v-spacer></v-spacer>
-          <v-btn variant="text" @click="dialog = false">取消</v-btn>
+          <v-btn variant="text" size="small" @click="dialog = false">取消</v-btn>
           <v-btn
             color="cyan"
             variant="flat"
+            size="small"
             @click="editMode ? updateTodo() : createTodo()"
             class="glow-button"
           >
-            <v-icon start>mdi-rocket-launch</v-icon>
-            {{ editMode ? '更新任務' : '發射！' }}
+            {{ editMode ? '更新' : '發射！' }}
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -391,13 +422,19 @@ onMounted(fetchTodos)
 .space-container {
   min-height: 100vh;
   background: linear-gradient(to bottom, #0a0a1a 0%, #1a1a3a 50%, #0d0d2b 100%);
-  padding: 2rem;
+  padding: 1rem;
   position: relative;
-  overflow: hidden;
+  overflow-x: hidden;
+}
+
+@media (min-width: 600px) {
+  .space-container {
+    padding: 2rem;
+  }
 }
 
 /* 星星動畫 */
-.stars, .stars2, .stars3 {
+.stars, .stars2 {
   position: fixed;
   top: 0;
   left: 0;
@@ -407,7 +444,7 @@ onMounted(fetchTodos)
 }
 
 .stars {
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Ccircle cx='50' cy='50' r='1' fill='white'/%3E%3Ccircle cx='150' cy='100' r='0.5' fill='white'/%3E%3Ccircle cx='300' cy='200' r='1.5' fill='white'/%3E%3Ccircle cx='100' cy='300' r='0.8' fill='white'/%3E%3Ccircle cx='350' cy='350' r='1' fill='white'/%3E%3Ccircle cx='200' cy='50' r='0.6' fill='white'/%3E%3Ccircle cx='250' cy='280' r='1.2' fill='white'/%3E%3C/svg%3E");
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Ccircle cx='50' cy='50' r='1' fill='white'/%3E%3Ccircle cx='150' cy='100' r='0.5' fill='white'/%3E%3Ccircle cx='300' cy='200' r='1.5' fill='white'/%3E%3Ccircle cx='100' cy='300' r='0.8' fill='white'/%3E%3Ccircle cx='350' cy='350' r='1' fill='white'/%3E%3C/svg%3E");
   animation: drift 60s linear infinite;
 }
 
@@ -417,109 +454,199 @@ onMounted(fetchTodos)
   opacity: 0.6;
 }
 
-.stars3 {
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='500' height='500'%3E%3Ccircle cx='100' cy='400' r='2' fill='%23ff4081'/%3E%3Ccircle cx='400' cy='100' r='1.5' fill='%23ffeb3b'/%3E%3C/svg%3E");
-  animation: drift 120s linear infinite;
-  opacity: 0.4;
-}
-
 @keyframes drift {
   from { transform: translateY(0); }
   to { transform: translateY(-100%); }
 }
 
-/* 霓虹文字 */
-.neon-text {
-  color: #00e5ff;
-  text-shadow: 
-    0 0 5px #00e5ff,
-    0 0 10px #00e5ff,
-    0 0 20px #00e5ff,
-    0 0 40px #00bcd4;
+/* Header */
+.console-header {
+  max-width: 600px;
+  margin: 0 auto 1rem;
+  position: relative;
+  z-index: 1;
 }
 
-/* 狀態面板 */
+.header-top {
+  margin-bottom: 1rem;
+}
+
+.logo-section {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.logo-icon {
+  font-size: 2rem;
+  color: #00e5ff;
+  text-shadow: 0 0 10px #00e5ff;
+}
+
+.title {
+  font-size: 1.25rem;
+  font-weight: bold;
+  color: #00e5ff;
+  text-shadow: 0 0 10px #00e5ff;
+  margin: 0;
+}
+
+.subtitle {
+  font-size: 0.7rem;
+  color: #4dd0e1;
+  margin: 0;
+}
+
+@media (min-width: 600px) {
+  .logo-icon {
+    font-size: 2.5rem;
+  }
+  .title {
+    font-size: 1.5rem;
+  }
+}
+
+/* Stats */
+.stats-row {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-start;
+}
+
 .stat-box {
   background: rgba(0, 229, 255, 0.1);
   border: 1px solid rgba(0, 229, 255, 0.3);
   border-radius: 8px;
-  padding: 0.5rem 1rem;
+  padding: 0.4rem 0.75rem;
   text-align: center;
-  min-width: 70px;
+  min-width: 60px;
 }
 
 .stat-value {
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   font-weight: bold;
   font-family: 'Courier New', monospace;
 }
 
 .stat-label {
-  font-size: 0.7rem;
+  font-size: 0.6rem;
   color: #90a4ae;
   text-transform: uppercase;
 }
 
-/* 控制台面板 */
+/* Main Panel */
 .console-panel {
-  background: rgba(10, 20, 40, 0.9) !important;
+  max-width: 600px;
+  background: rgba(10, 20, 40, 0.95) !important;
   border: 1px solid rgba(0, 229, 255, 0.3);
   border-radius: 12px;
-  backdrop-filter: blur(10px);
-  box-shadow: 
-    0 0 20px rgba(0, 229, 255, 0.1),
-    inset 0 0 60px rgba(0, 229, 255, 0.05);
+  position: relative;
+  z-index: 1;
 }
 
 .panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
   background: linear-gradient(90deg, rgba(0, 229, 255, 0.1) 0%, transparent 100%);
 }
 
-/* TODO 項目 */
+.panel-title {
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+}
+
+/* Todo List */
 .todo-list {
-  max-height: 500px;
+  max-height: 60vh;
   overflow-y: auto;
 }
 
 .todo-item {
   border-bottom: 1px solid rgba(0, 229, 255, 0.1);
-  transition: all 0.3s ease;
-}
-
-.todo-item:hover {
-  background: rgba(0, 229, 255, 0.05);
+  padding: 0.5rem 0.75rem !important;
+  min-height: auto !important;
 }
 
 .todo-item.completed {
   opacity: 0.5;
 }
 
-.priority-chip {
-  font-size: 0.7rem;
+.todo-content {
+  flex: 1;
+  min-width: 0;
 }
 
-/* 發光按鈕 */
-.glow-button {
-  box-shadow: 0 0 10px rgba(0, 229, 255, 0.5);
-  transition: box-shadow 0.3s ease;
+.todo-title {
+  font-size: 0.9rem;
+  color: #fff;
+  word-break: break-word;
 }
 
-.glow-button:hover {
-  box-shadow: 0 0 20px rgba(0, 229, 255, 0.8);
+.todo-title.done {
+  text-decoration: line-through;
+  color: #666;
 }
 
-/* 對話框 */
+.todo-desc {
+  font-size: 0.75rem;
+  color: #90a4ae;
+  margin-top: 2px;
+}
+
+.todo-meta {
+  display: flex;
+  gap: 0.25rem;
+  margin-top: 0.25rem;
+  flex-wrap: wrap;
+}
+
+.todo-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+@media (min-width: 600px) {
+  .todo-actions {
+    flex-direction: row;
+  }
+}
+
+/* Empty State */
+.empty-state {
+  text-align: center;
+  padding: 2rem !important;
+  color: #666;
+}
+
+/* Dialog */
 .dialog-card {
-  background: rgba(10, 20, 40, 0.95) !important;
+  background: rgba(10, 20, 40, 0.98) !important;
   border: 1px solid rgba(0, 229, 255, 0.3);
 }
 
 .dialog-header {
+  font-size: 1rem;
+  padding: 1rem;
   background: linear-gradient(90deg, rgba(0, 229, 255, 0.2) 0%, transparent 100%);
   color: #00e5ff;
 }
 
-/* 列表動畫 */
+/* Glow Button */
+.glow-button {
+  box-shadow: 0 0 8px rgba(0, 229, 255, 0.5);
+}
+
+/* Error Alert */
+.error-alert {
+  position: relative;
+  z-index: 1;
+}
+
+/* List Animation */
 .list-enter-active,
 .list-leave-active {
   transition: all 0.3s ease;
@@ -528,12 +655,12 @@ onMounted(fetchTodos)
 .list-enter-from,
 .list-leave-to {
   opacity: 0;
-  transform: translateX(-30px);
+  transform: translateX(-20px);
 }
 
-/* 滾動條 */
+/* Scrollbar */
 .todo-list::-webkit-scrollbar {
-  width: 6px;
+  width: 4px;
 }
 
 .todo-list::-webkit-scrollbar-track {
@@ -542,6 +669,6 @@ onMounted(fetchTodos)
 
 .todo-list::-webkit-scrollbar-thumb {
   background: rgba(0, 229, 255, 0.3);
-  border-radius: 3px;
+  border-radius: 2px;
 }
 </style>

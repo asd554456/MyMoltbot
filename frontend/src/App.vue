@@ -5,17 +5,15 @@ import TodoList from './components/TodoList.vue'
 
 const isLoggedIn = ref(false)
 const username = ref('')
-const darkMode = ref(true)
 
 onMounted(() => {
   const token = localStorage.getItem('token')
   if (token) {
-    // 簡單驗證 token 是否存在
     try {
       const payload = JSON.parse(atob(token.split('.')[1]))
       if (payload.exp * 1000 > Date.now()) {
         isLoggedIn.value = true
-        username.value = payload.unique_name || 'User'
+        username.value = payload.unique_name || payload['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name'] || 'User'
       } else {
         localStorage.removeItem('token')
       }
@@ -38,48 +36,28 @@ const handleLogout = () => {
 </script>
 
 <template>
-  <v-app :theme="darkMode ? 'dark' : 'light'">
-    <!-- 未登入顯示登入頁面 -->
+  <v-app theme="dark">
+    <!-- 未登入 -->
     <template v-if="!isLoggedIn">
-      <v-app-bar color="transparent" flat class="px-4">
-        <v-app-bar-title class="text-cyan font-weight-bold">
-          <v-icon class="mr-2">mdi-rocket-launch</v-icon>
-          MyMoltbot
-        </v-app-bar-title>
-      </v-app-bar>
-      
-      <v-main class="login-background">
+      <v-main class="login-bg">
         <LoginForm @login="handleLogin" />
       </v-main>
     </template>
 
-    <!-- 已登入顯示 TODO List -->
+    <!-- 已登入 -->
     <template v-else>
-      <!-- 浮動控制按鈕 -->
-      <div class="floating-controls">
+      <!-- 頂部用戶欄 -->
+      <div class="user-bar">
+        <div class="user-info">
+          <v-icon size="16" class="mr-1">mdi-account-circle</v-icon>
+          <span>{{ username }}</span>
+        </div>
         <v-btn
-          icon
-          size="small"
-          color="cyan"
-          variant="outlined"
-          class="mr-2"
-          @click="darkMode = !darkMode"
-        >
-          <v-icon>{{ darkMode ? 'mdi-weather-sunny' : 'mdi-weather-night' }}</v-icon>
-        </v-btn>
-        
-        <v-chip color="cyan" variant="outlined" class="mr-2">
-          <v-icon start>mdi-account</v-icon>
-          {{ username }}
-        </v-chip>
-        
-        <v-btn
-          size="small"
+          size="x-small"
           color="red"
-          variant="outlined"
+          variant="text"
           @click="handleLogout"
         >
-          <v-icon start>mdi-logout</v-icon>
           登出
         </v-btn>
       </div>
@@ -92,17 +70,39 @@ const handleLogout = () => {
 </template>
 
 <style>
-.login-background {
+html, body {
+  overflow-x: hidden;
+}
+
+.login-bg {
   background: linear-gradient(135deg, #0a0a1a 0%, #1a1a3a 50%, #0d0d2b 100%);
   min-height: 100vh;
 }
 
-.floating-controls {
+.user-bar {
   position: fixed;
-  top: 1rem;
-  right: 1rem;
-  z-index: 1000;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  background: rgba(10, 20, 40, 0.9);
+  border-bottom: 1px solid rgba(0, 229, 255, 0.2);
+  backdrop-filter: blur(10px);
+}
+
+.user-info {
   display: flex;
   align-items: center;
+  color: #4dd0e1;
+  font-size: 0.85rem;
+}
+
+/* 給 main 留出頂部空間 */
+.v-main {
+  padding-top: 44px !important;
 }
 </style>
