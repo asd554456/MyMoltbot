@@ -9,7 +9,7 @@ public class TodoItem
     public int Priority { get; set; } = 1; // 1-5, 5 = 最高
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? CompletedAt { get; set; }
-    public DateTime? DueDate { get; set; }
+    public DateOnly? DueDate { get; set; }  // 改用 DateOnly 避免時區問題
     
     // 關聯用戶
     public int UserId { get; set; }
