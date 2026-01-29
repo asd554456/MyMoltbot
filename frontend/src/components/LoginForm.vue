@@ -19,7 +19,7 @@ const isValid = computed(() => {
   return form.value.username.length >= 3 && form.value.password.length >= 6
 })
 
-const API_URL = 'http://localhost:5000/api'
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
 const handleSubmit = async () => {
   if (!isValid.value) return

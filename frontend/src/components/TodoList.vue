@@ -25,7 +25,7 @@ const newTodo = ref({
   dueDate: ''
 })
 
-const API_URL = 'http://localhost:5000/api'
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
 const getAuthHeaders = () => ({
   'Content-Type': 'application/json',
@@ -260,56 +260,113 @@ onMounted(fetchTodos)
         </v-card-title>
 
         <v-card-text class="pa-6">
-          <v-text-field
-            v-model="editMode ? currentTodo.title : newTodo.title"
-            label="任務名稱"
-            variant="outlined"
-            color="cyan"
-            prepend-inner-icon="mdi-flag"
-            class="mb-4"
-          ></v-text-field>
+          <!-- 新增模式 -->
+          <template v-if="!editMode">
+            <v-text-field
+              v-model="newTodo.title"
+              label="任務名稱"
+              variant="outlined"
+              color="cyan"
+              prepend-inner-icon="mdi-flag"
+              class="mb-4"
+            ></v-text-field>
 
-          <v-textarea
-            v-model="editMode ? currentTodo.description : newTodo.description"
-            label="任務描述"
-            variant="outlined"
-            color="cyan"
-            rows="2"
-            prepend-inner-icon="mdi-text"
-            class="mb-4"
-          ></v-textarea>
+            <v-textarea
+              v-model="newTodo.description"
+              label="任務描述"
+              variant="outlined"
+              color="cyan"
+              rows="2"
+              prepend-inner-icon="mdi-text"
+              class="mb-4"
+            ></v-textarea>
 
-          <v-select
-            v-model="editMode ? currentTodo.priority : newTodo.priority"
-            :items="[1, 2, 3, 4, 5]"
-            label="優先等級"
-            variant="outlined"
-            color="cyan"
-            prepend-inner-icon="mdi-alert-circle"
-            class="mb-4"
-          >
-            <template #item="{ item, props }">
-              <v-list-item v-bind="props">
-                <template #prepend>
-                  <v-icon :color="priorityColors[item.value]">{{ priorityIcons[item.value] }}</v-icon>
-                </template>
-                <v-list-item-title>{{ priorityLabels[item.value] }}</v-list-item-title>
-              </v-list-item>
-            </template>
-            <template #selection="{ item }">
-              <v-icon :color="priorityColors[item.value]" class="mr-2">{{ priorityIcons[item.value] }}</v-icon>
-              {{ priorityLabels[item.value] }}
-            </template>
-          </v-select>
+            <v-select
+              v-model="newTodo.priority"
+              :items="[1, 2, 3, 4, 5]"
+              label="優先等級"
+              variant="outlined"
+              color="cyan"
+              prepend-inner-icon="mdi-alert-circle"
+              class="mb-4"
+            >
+              <template #item="{ item, props }">
+                <v-list-item v-bind="props">
+                  <template #prepend>
+                    <v-icon :color="priorityColors[item.value]">{{ priorityIcons[item.value] }}</v-icon>
+                  </template>
+                  <v-list-item-title>{{ priorityLabels[item.value] }}</v-list-item-title>
+                </v-list-item>
+              </template>
+              <template #selection="{ item }">
+                <v-icon :color="priorityColors[item.value]" class="mr-2">{{ priorityIcons[item.value] }}</v-icon>
+                {{ priorityLabels[item.value] }}
+              </template>
+            </v-select>
 
-          <v-text-field
-            v-model="editMode ? currentTodo.dueDate : newTodo.dueDate"
-            label="截止日期"
-            type="date"
-            variant="outlined"
-            color="cyan"
-            prepend-inner-icon="mdi-calendar"
-          ></v-text-field>
+            <v-text-field
+              v-model="newTodo.dueDate"
+              label="截止日期"
+              type="date"
+              variant="outlined"
+              color="cyan"
+              prepend-inner-icon="mdi-calendar"
+            ></v-text-field>
+          </template>
+
+          <!-- 編輯模式 -->
+          <template v-else>
+            <v-text-field
+              v-model="currentTodo.title"
+              label="任務名稱"
+              variant="outlined"
+              color="cyan"
+              prepend-inner-icon="mdi-flag"
+              class="mb-4"
+            ></v-text-field>
+
+            <v-textarea
+              v-model="currentTodo.description"
+              label="任務描述"
+              variant="outlined"
+              color="cyan"
+              rows="2"
+              prepend-inner-icon="mdi-text"
+              class="mb-4"
+            ></v-textarea>
+
+            <v-select
+              v-model="currentTodo.priority"
+              :items="[1, 2, 3, 4, 5]"
+              label="優先等級"
+              variant="outlined"
+              color="cyan"
+              prepend-inner-icon="mdi-alert-circle"
+              class="mb-4"
+            >
+              <template #item="{ item, props }">
+                <v-list-item v-bind="props">
+                  <template #prepend>
+                    <v-icon :color="priorityColors[item.value]">{{ priorityIcons[item.value] }}</v-icon>
+                  </template>
+                  <v-list-item-title>{{ priorityLabels[item.value] }}</v-list-item-title>
+                </v-list-item>
+              </template>
+              <template #selection="{ item }">
+                <v-icon :color="priorityColors[item.value]" class="mr-2">{{ priorityIcons[item.value] }}</v-icon>
+                {{ priorityLabels[item.value] }}
+              </template>
+            </v-select>
+
+            <v-text-field
+              v-model="currentTodo.dueDate"
+              label="截止日期"
+              type="date"
+              variant="outlined"
+              color="cyan"
+              prepend-inner-icon="mdi-calendar"
+            ></v-text-field>
+          </template>
         </v-card-text>
 
         <v-card-actions class="pa-6 pt-0">

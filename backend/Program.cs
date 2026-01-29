@@ -44,7 +44,9 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:5173")
+        policy.WithOrigins(
+                "http://localhost:5173",
+                "https://friendly-chainsaw-5rjpwg9v6gxc7gp4-5173.app.github.dev")
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();
